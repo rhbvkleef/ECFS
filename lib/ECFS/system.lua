@@ -1,3 +1,5 @@
+-- A system is a combination of a register and unregister function.
+-- For convenience's sake, functions can be stored within the system, but they will NOT be executed automatically!
 core.system = {}
 core.system.registers = {}
 core.system.unregisters = {}
@@ -14,9 +16,7 @@ core.system.add = function(system)
     if system.registers then
         -- k is the name of a filter
         for k, v in pairs(system.registers) do
-            if not registers[k] then
-                registers[k] = {}
-            end
+            registers[k] = registers[k] or {}
             registers[k][system] = system
             if E[k] then
                 for _, w in pairs(E[k]) do
@@ -38,12 +38,13 @@ core.system.add = function(system)
     end
 end
 
+
 core.system.remove = function(system)
 
-    for k, v in pairs(system.registers) do
+    for k, _ in pairs(system.registers) do
         registers[k][system] = nil
     end
-    for k, v in pairs(system.unregisters) do
+    for k, _ in pairs(system.unregisters) do
         if E[k] then
             for _, w in pairs(E[k]) do
                 system.unregisters[k](w)
