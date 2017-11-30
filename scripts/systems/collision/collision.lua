@@ -69,11 +69,11 @@ local function checkCollision(entity1)
                 end
 
                 -- polygon collision
-                local collided = lib.polygon_in_polygon(p1, p2, entity1.position, entity2.position)
+                local collided, info = lib.polygon_in_polygon(p1, p2, entity1.position, entity2.position)
 
                 -- Actual logic
                 if collided then
-                    lib.execute_if_rule(entity1, entity2, s.prev[entity1])
+                    lib.execute_if_rule(entity1, entity2, s.prev[entity1], collided, info)
                 end
             end
         end

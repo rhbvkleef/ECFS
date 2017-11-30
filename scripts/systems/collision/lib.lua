@@ -2,7 +2,7 @@
 local f = {}
 -- elements of list: {{x=x, y=y, minx=x, miny=y, maxx=x, maxy=y, }}
 
--- Get a circle around an entity. Stays valid when polygon rotates around origin (trivially true)
+--- Get a circle around an entity. Stays valid when polygon rotates around origin (trivially true)
 f.circle_around = function(entity, list)
     local poly = entity.collision.polygon
     local x, y = entity.position.x, entity.position.y
@@ -17,7 +17,7 @@ f.circle_around = function(entity, list)
     return x, y, math.sqrt(radius)
 end
 
--- assume: has at least one point. Important: does NOT auto-update when polygon rotates.
+--- assume: has at least one point. Important: does NOT auto-update when polygon rotates.
 f.aabb_around = function(entity, list)
     local poly = {}
     for k, v in ipairs(entity.collision.polygon) do
@@ -63,16 +63,16 @@ f.check_rule = function(entity1, entity2)
     return false
 end
 
-f.execute_if_rule = function(entity1, entity2, prev)
+f.execute_if_rule = function(entity1, entity2, prev, collision_type, collision_info)
     local f = rules[entity1.collision.type][entity2.collision.type]
     if f then
-        return f(entity1, entity2, prev)
+        return f(entity1, entity2, prev, collision_type, collision_info)
     end
     local f = rules[entity2.collision.type][entity1.collision.type]
     if f then
-        return f(entity2, entity1, prev)
+        return f(entity2, entity1, prev, collision_type, collision_info)
     end
-    print("ERROR, NO FUNC FOUND")
+    print("Warning: No collision function found!")
 end
 
 local function point_in_polygon(polygon, point, position, position2)
@@ -90,7 +90,7 @@ local function point_in_polygon(polygon, point, position, position2)
         end
         prev = k
     end
-    return odd
+    return odd, point
 end
 
 
@@ -128,27 +128,44 @@ end
 
 f.line_in_polygon = line_in_polygon
 
+--- Checks if two polygons intersect
+-- @param polygon2 The polygon that won't be resolved for this collision
+-- @param polygon The moving polygon that possibly needs resolving in this
+-- collision
+-- @param position2
+-- @param position
+-- @return false if there is no intersection, 1 if there is an intersection of
+-- a point from polygon 1 against polygon 2, and 2 if there is a point
+-- intersection from polygon 2 against polygon 1. Along with that, it also
+-- returns an object containing type 1 for a point intersect or type 2 for
+-- a line intersect. For type 1, it returns the point and for type 2, returns
+-- the line.
 f.polygon_in_polygon = function(polygon2, polygon, position2, position)
-    local hit = false
 
     local old = polygon2[#polygon2]
+    local in_poly, point = point_in_polygon(polygon, old, position, position2)
+    if in_poly then
+        return 1, { type = 1, point = point }
+    end
+
     for k, v in ipairs(polygon2) do
-        if point_in_polygon(polygon, v, position, position2) then
-            hit = true
-            break
+        local in_poly, point = point_in_polygon(polygon, v, position, position2)
+        if in_poly then
+            return 1, { type = 1, point = point }
         end
-        if line_in_polygon(polygon, old, v, position, position2) then
-            hit = true
-            break
+        local intersects, x0, y0, x1, y1 = line_in_polygon(polygon, old, v, position, position2)
+        if intersects then
+            return 2, { type = 2, x0 = x0, y0 = y0, x1 = x1, y1 = y1 }
         end
         old = v
     end
     for k, v in ipairs(polygon) do
-        if point_in_polygon(polygon2, v, position2, position) then
-            hit = true
+        local in_poly, point = point_in_polygon(polygon2, v, position2, position)
+        if in_poly then
+            return 2, {type = 1, point = point}
         end
     end
-    return hit
+    return false
 end
 
 
@@ -160,8 +177,53 @@ f.rotate_poly = function(entity)
     return poly
 end
 
-f.trivial_solve = function(entity1, entity2, prev)
+f.trivial_solve = function(entity1, _, prev)
     entity1.position = prev
 end
+
+--- Solves a collision using normal vectors and correction for direction.
+--
+-- <h3>Principle of operation</h3>
+-- <p>
+-- This solver tries to accurately direct an entity into a direction that
+-- would be logical according to the laws of physics. It first takes either
+-- the normal vector for collision onto a line, or the  vector for a
+-- collision onto a point, with entity1 having a line on that collsion point.
+-- There is always one of these that match, if either one could match
+-- using a simple resolve, an assumption is made and solved "however".
+-- </p>
+-- <p>
+-- When it has this vector, it takes a 90 degree angle of that and projects
+-- the movement vector onto that vector. It then tries to move entity1
+-- again, using that vector.
+-- </p>
+--
+-- @param entity1 The moving entity that initiated the collision, and for
+-- which, a collision needs to be solved
+-- @param entity2 The stationary entity or entity which is not affected by this solve
+-- @param prev The current location of entity1
+-- @param collision_type The return value of <code>f.polygon_in_polygon</code>.
+-- It is either 1 for a point-to-line collision, or 2 for a line-to-point collision.
+--
+-- @see f.trivial_solve
+-- @see f.polygon_in_polygon
+f.normal_solve = function(entity1, entity2, prev, collision_type, collision_info)
+    -- Move the minimum not to collide.
+    if collision_info.type == 1 then
+        -- Point collision
+
+        if collision_type == 1 then
+            -- Find the line on entity1, return the direction of that line.
+        else
+            -- Find the line on entity2, return the direction of that line.
+        end
+    else
+        -- We have a line, just return a 90 degree vector of its normal vector.
+    end
+
+    -- Project the movement vector onto the collision line vector and move along
+    -- the resulting vector.
+end
+
 
 return f
